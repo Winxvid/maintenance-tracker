@@ -55,6 +55,10 @@ select, input[type="date"], input[type="number"] {
 }
 
 .sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 8px 10px 18px;
   border-bottom: 1px solid rgba(255,255,255,0.15);
 }
@@ -122,17 +126,22 @@ select, input[type="date"], input[type="number"] {
 }
 
 .admin-button {
-  border: none;
-  background: var(--sidebar);
+  border: 1px solid rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.1);
   color: white;
-  padding: 10px 14px;
-  border-radius: 10px;
+  padding: 7px 13px;
+  border-radius: 8px;
   font-weight: 700;
   cursor: pointer;
+  font-size: 0.85rem;
+  min-height: 36px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .admin-button.active {
   background: var(--primary);
+  border-color: var(--primary);
 }
 
 .date-field-label {
@@ -427,19 +436,29 @@ select, input[type="date"], input[type="number"] {
   .date-field-label {
     flex-direction: column;
     align-items: flex-start;
-    gap: 4px;
+    gap: 2px;
+  }
+
+  .date-field-label span {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--muted);
+    font-weight: 700;
   }
 
   .date-field-label input {
+    border: none;
+    background: transparent;
+    padding: 4px 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text);
     width: 100%;
     min-width: 0;
     box-sizing: border-box;
   }
 
-  .admin-button {
-    grid-column: 1 / -1;
-    width: 100%;
-  }
 
   .maintenance-grid {
     grid-template-columns: repeat(2, 1fr);

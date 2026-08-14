@@ -169,6 +169,13 @@ export default function Home() {
       <aside className="sidebar">
         <div className="sidebar-header">
           <h1>Units</h1>
+          <button
+            type="button"
+            className={`admin-button ${adminUnlocked ? 'active' : ''}`}
+            onClick={handleAdmin}
+          >
+            {adminUnlocked ? 'Admin On' : 'Admin Off'}
+          </button>
         </div>
         <nav id="unitList" className="unit-list" aria-label="Unit list">
           {units.map((unit) => (
@@ -223,14 +230,6 @@ export default function Home() {
                 />
               </label>
             </div>
-
-            <button
-              type="button"
-              className={`admin-button ${adminUnlocked ? 'active' : ''}`}
-              onClick={handleAdmin}
-            >
-              {adminUnlocked ? 'Admin On' : 'Admin Off'}
-            </button>
           </div>
         </header>
 
