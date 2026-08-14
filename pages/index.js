@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import Head from 'next/head';
 import { supabase } from '../lib/supabaseClient';
 
 const unitCount = 13;
@@ -159,7 +160,12 @@ export default function Home() {
   }
 
   return (
-    <div className="app-shell">
+    <>
+      <Head>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="theme-color" content="#17212f" />
+      </Head>
+      <div className="app-shell">
       <aside className="sidebar">
         <div className="sidebar-header">
           <h1>Units</h1>
@@ -319,5 +325,6 @@ export default function Home() {
         </section>
       </main>
     </div>
+    </>
   );
 }
