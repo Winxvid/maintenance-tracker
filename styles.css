@@ -414,13 +414,14 @@ select, input[type="date"], input[type="number"] {
   }
 
   .topbar-controls {
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 8px;
   }
 
   .meta-card {
-    flex: 1;
-    min-width: 140px;
+    min-width: 0;
+    overflow: hidden;
   }
 
   .date-field-label {
@@ -431,10 +432,13 @@ select, input[type="date"], input[type="number"] {
 
   .date-field-label input {
     width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
   }
 
   .admin-button {
-    flex: 1;
+    grid-column: 1 / -1;
+    width: 100%;
   }
 
   .maintenance-grid {
