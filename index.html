@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Maintenance Tracker</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <h1>Units</h1>
+        </div>
+        <nav id="unitList" class="unit-list" aria-label="Unit list"></nav>
+      </aside>
+
+      <main class="content-panel">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Maintenance Tracker</p>
+            <h2 id="unitTitle">Unit 1001</h2>
+          </div>
+
+          <div class="topbar-controls">
+            <div class="meta-card">
+              <label class="date-field-label" for="unitDate">
+                <span>Date</span>
+                <input id="unitDate" type="date" />
+              </label>
+            </div>
+
+            <div class="meta-card">
+              <label class="date-field-label" for="pumpHours">
+                <span>Pump Hours</span>
+                <input id="pumpHours" type="number" min="0" step="1" placeholder="0" />
+              </label>
+            </div>
+
+            <button id="adminButton" class="admin-button" type="button">Admin</button>
+          </div>
+        </header>
+
+        <section class="maintenance-grid-panel">
+          <div id="maintenanceGrid" class="maintenance-grid" aria-live="polite"></div>
+
+          <div class="bulk-controls" aria-label="Bulk maintenance actions">
+            <label class="bulk-checkbox">
+              <input id="bulkValvesSeats" type="checkbox" />
+              <span>Valves &amp; Seats</span>
+            </label>
+
+            <label class="bulk-checkbox">
+              <input id="bulkPacking" type="checkbox" />
+              <span>All Packing</span>
+            </label>
+          </div>
+
+          <div class="submit-row">
+            <button id="submitEntryButton" class="submit-button" type="button">Submit</button>
+          </div>
+        </section>
+
+        <section class="report-panel">
+          <div class="report-head">
+            <h3>Maintenance History</h3>
+            <span id="historySummary" class="summary-pill"></span>
+          </div>
+          <div id="historyList" class="history-list"></div>
+        </section>
+      </main>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
