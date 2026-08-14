@@ -50,6 +50,9 @@ export default function Home() {
   const [adminUnlocked, setAdminUnlocked] = useState(false);
   const [history, setHistory] = useState([]);
 
+  const [allHistory, setAllHistory] = useState([]);
+  const [progressMap, setProgressMap] = useState({});
+
   useEffect(() => {
     async function fetchHistory() {
       const { data, error } = await supabase
@@ -80,6 +83,69 @@ export default function Home() {
       supabase.removeChannel(channel);
     };
   }, [selectedUnitNumber]);
+
+  useEffect(() => {
+    async function fetchAll() {
+      const { data, error } = await supabase
+        .from('maintenance_history')
+        .select('*')
+        .order('date', { ascending: false });
+
+      if (error) return;
+
+      const rows = data || [];
+      setAllHistory(rows);
+
+      const grouped = rows.reduce((acc, row) => {
+        const un = row.unit_number;
+        if (!acc[un]) acc[un] = [];
+        acc[un].push(row);
+        return acc;
+      }, {});
+
+      const map = {};
+
+      Object.entries(grouped).forEach(([unitNumber, unitRows]) => {
+        const sortByDateDesc = (a, b) => {
+          const aDate = a.date ? new Date(a.date) : new Date(a.created_at || 0);
+          const bDate = b.date ? new Date(b.date) : new Date(b.created_at || 0);
+          return bDate - aDate;
+        };
+
+        const latestRow = unitRows.slice().sort(sortByDateDesc)[0];
+        const currentPumpHours = Number(latestRow?.pump_hours) || 0;
+
+        const valvesRows = unitRows.filter((r) => r.type && (r.type.includes('Valves') || r.type.includes('Valves & Seats')));
+        const lastValvesRow = valvesRows.slice().sort(sortByDateDesc)[0];
+        const lastValvesHours = Number(lastValvesRow?.pump_hours) || 0;
+
+        const packingRows = unitRows.filter((r) => r.type && r.type.includes('Packing'));
+        const lastPackingRow = packingRows.slice().sort(sortByDateDesc)[0];
+        const lastPackingHours = Number(lastPackingRow?.pump_hours) || 0;
+
+        const valvesPct = Math.round(Math.min(100, Math.max(0, ((currentPumpHours - lastValvesHours) / 300) * 100)));
+        const packingPct = Math.round(Math.min(100, Math.max(0, ((currentPumpHours - lastPackingHours) / 300) * 100)));
+
+        map[unitNumber] = {
+          valves: `${valvesPct}%`,
+          packing: `${packingPct}%`,
+        };
+      });
+
+      setProgressMap(map);
+    }
+
+    fetchAll();
+
+    const channel = supabase
+      .channel('maintenance_history_all_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'maintenance_history' }, () => {
+        fetchAll();
+      })
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, []);
 
   const selectedUnit = units.find((unit) => unit.unitNumber === selectedUnitNumber) || units[0];
   const bulkValvesSeats = selectedUnit.slots.every((slot) => slot.type === 'Valves & Seats');
@@ -198,7 +264,27 @@ export default function Home() {
               aria-pressed={unit.unitNumber === selectedUnitNumber}
               onClick={() => setSelectedUnitNumber(unit.unitNumber)}
             >
-              Unit {unit.unitNumber}
+              <div>Unit {unit.unitNumber}</div>
+
+              <div className="unit-progress" aria-hidden="true">
+                <div className="unit-progress-bar">
+                  <div
+                    className="unit-progress-fill"
+                    style={{ width: progressMap[unit.unitNumber]?.valves || '0%' }}
+                  />
+                </div>
+                <div className="progress-label">Valves {progressMap[unit.unitNumber]?.valves || '0%'}</div>
+              </div>
+
+              <div className="unit-progress" aria-hidden="true">
+                <div className="unit-progress-bar">
+                  <div
+                    className="unit-progress-fill"
+                    style={{ width: progressMap[unit.unitNumber]?.packing || '0%' }}
+                  />
+                </div>
+                <div className="progress-label">Packing {progressMap[unit.unitNumber]?.packing || '0%'}</div>
+              </div>
             </button>
           ))}
         </nav>
