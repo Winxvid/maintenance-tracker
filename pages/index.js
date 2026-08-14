@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabaseClient';
 
 const unitCount = 13;
 const unitStart = 1001;
@@ -12,7 +13,6 @@ function createUnits() {
       unitNumber,
       date: '',
       pumpHours: '',
-      history: [],
       slots: Array.from({ length: holeCount }, (_, slotIndex) => ({
         slotNumber: slotIndex + 1,
         type: '',
@@ -35,6 +35,38 @@ export default function Home() {
   const [units, setUnits] = useState(createUnits);
   const [selectedUnitNumber, setSelectedUnitNumber] = useState(unitStart);
   const [adminUnlocked, setAdminUnlocked] = useState(false);
+  const [history, setHistory] = useState([]);
+
+  useEffect(() => {
+    async function fetchHistory() {
+      const { data, error } = await supabase
+        .from('maintenance_history')
+        .select('*')
+        .eq('unit_number', selectedUnitNumber)
+        .order('date', { ascending: false });
+
+      if (!error) {
+        setHistory(data || []);
+      }
+    }
+
+    fetchHistory();
+
+    const channel = supabase
+      .channel('maintenance_history_changes')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'maintenance_history',
+      }, () => {
+        fetchHistory();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedUnitNumber]);
 
   const selectedUnit = units.find((unit) => unit.unitNumber === selectedUnitNumber) || units[0];
   const bulkValvesSeats = selectedUnit.slots.every((slot) => slot.type === 'Valves & Seats');
@@ -64,7 +96,7 @@ export default function Home() {
     }));
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!selectedUnit.date) {
       window.alert('Please select a date before submitting.');
       return;
@@ -77,26 +109,34 @@ export default function Home() {
       return;
     }
 
-    const compactEntry = {
-      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      slotNumber: selectedEntries.map((slot) => slot.slotNumber).join(', '),
+    const { error } = await supabase.from('maintenance_history').insert({
+      unit_number: selectedUnitNumber,
+      slot_number: selectedEntries.map((slot) => slot.slotNumber).join(', '),
       type: selectedEntries.map((slot) => `${slot.slotNumber}: ${slot.type}`).join(', '),
       date: selectedUnit.date,
-      pumpHours: selectedUnit.pumpHours || '0',
-    };
+      pump_hours: selectedUnit.pumpHours || '0',
+    });
+
+    if (error) {
+      window.alert('Failed to save entry. Please try again.');
+      return;
+    }
 
     updateSelectedUnit((unit) => ({
       ...unit,
-      history: [compactEntry, ...unit.history].sort((a, b) => (a.date < b.date ? 1 : -1)),
       slots: unit.slots.map((slot) => ({ ...slot, type: '' })),
     }));
   }
 
-  function handleDelete(entryId) {
-    updateSelectedUnit((unit) => ({
-      ...unit,
-      history: unit.history.filter((entry) => entry.id !== entryId),
-    }));
+  async function handleDelete(entryId) {
+    const { error } = await supabase
+      .from('maintenance_history')
+      .delete()
+      .eq('id', entryId);
+
+    if (error) {
+      window.alert('Failed to delete entry. Please try again.');
+    }
   }
 
   function handleAdmin() {
@@ -247,18 +287,18 @@ export default function Home() {
         <section className="report-panel">
           <div className="report-head">
             <h3>Maintenance History</h3>
-            <span className="summary-pill">{selectedUnit.history.length} recorded maintenance items</span>
+            <span className="summary-pill">{history.length} recorded maintenance items</span>
           </div>
           <div className="history-list">
-            {selectedUnit.history.length === 0 ? (
+            {history.length === 0 ? (
               <div className="empty-history">No maintenance recorded yet for this unit.</div>
             ) : (
-              selectedUnit.history.map((entry) => (
+              history.map((entry) => (
                 <div key={entry.id} className="history-item compact">
                   <div className="history-entry-summary">
                     <strong>{formatDate(entry.date)}</strong>
-                    <span>Pump Hours: {entry.pumpHours || '0'}</span>
-                    <span>Holes: {entry.slotNumber}</span>
+                    <span>Pump Hours: {entry.pump_hours || '0'}</span>
+                    <span>Holes: {entry.slot_number}</span>
                   </div>
                   <div className="history-date">{entry.type}</div>
                   {adminUnlocked && (
