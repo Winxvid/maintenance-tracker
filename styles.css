@@ -353,6 +353,13 @@ select, input[type="date"], input[type="number"] {
   font-weight: 600;
 }
 
+.history-timestamp {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 5px;
+  font-weight: 500;
+}
+
 .empty-history {
   text-align: center;
   color: var(--muted);

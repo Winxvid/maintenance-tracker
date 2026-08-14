@@ -32,6 +32,18 @@ function formatDate(dateString) {
   }).format(date);
 }
 
+function formatTimestamp(isoString) {
+  if (!isoString) return '';
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).format(new Date(isoString));
+}
+
 export default function Home() {
   const [units, setUnits] = useState(createUnits);
   const [selectedUnitNumber, setSelectedUnitNumber] = useState(unitStart);
@@ -306,6 +318,7 @@ export default function Home() {
                     <span>Holes: {entry.slot_number}</span>
                   </div>
                   <div className="history-date">{entry.type}</div>
+                  <div className="history-timestamp">Logged: {formatTimestamp(entry.created_at)}</div>
                   {adminUnlocked && (
                     <div className="history-actions">
                       <button
