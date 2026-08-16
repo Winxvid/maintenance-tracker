@@ -52,6 +52,8 @@ export default function Home() {
 
   const [allHistory, setAllHistory] = useState([]);
   const [progressMap, setProgressMap] = useState({});
+  const [latestHoursMap, setLatestHoursMap] = useState({});
+  const [quickHours, setQuickHours] = useState({});
 
   useEffect(() => {
     async function fetchHistory() {
@@ -113,7 +115,9 @@ export default function Home() {
         };
 
         const latestRow = unitRows.slice().sort(sortByDateDesc)[0];
-        const currentPumpHours = Number(latestRow?.pump_hours) || 0;
+        // Prefer latest hours from unit_hours table when available
+        const latestFromMap = latestHoursMap?.[unitNumber] || latestHoursMap?.[String(unitNumber)];
+        const currentPumpHours = Number(latestFromMap?.pump_hours ?? latestRow?.pump_hours ?? 0);
 
         const valvesRows = unitRows.filter((r) => r.type && (r.type.includes('Valves') || r.type.includes('Valves & Seats')));
         const lastValvesRow = valvesRows.slice().sort(sortByDateDesc)[0];
@@ -145,6 +149,53 @@ export default function Home() {
       .subscribe();
 
     return () => supabase.removeChannel(channel);
+  }, [latestHoursMap]);
+  
+  // Global fetch of unit_hours to compute latest per unit for progress calculation
+  useEffect(() => {
+    let channel;
+
+    async function fetchAllUnitHours() {
+      const { data, error } = await supabase
+        .from('unit_hours')
+        .select('*')
+        .order('date', { ascending: false });
+
+      if (error) return;
+
+      const rows = data || [];
+      const grouped = rows.reduce((acc, row) => {
+        const un = String(row.unit_number);
+        if (!acc[un]) acc[un] = [];
+        acc[un].push(row);
+        return acc;
+      }, {});
+
+      const newMap = {};
+      Object.entries(grouped).forEach(([un, rowsForUnit]) => {
+        rowsForUnit.sort((a, b) => {
+          const aDate = a.date ? new Date(a.date) : new Date(a.created_at || 0);
+          const bDate = b.date ? new Date(b.date) : new Date(b.created_at || 0);
+          return bDate - aDate;
+        });
+        newMap[un] = rowsForUnit[0];
+      });
+
+      setLatestHoursMap(newMap);
+    }
+
+    fetchAllUnitHours();
+
+    channel = supabase
+      .channel('unit_hours_all_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'unit_hours' }, () => {
+        fetchAllUnitHours();
+      })
+      .subscribe();
+
+    return () => {
+      if (channel) supabase.removeChannel(channel);
+    };
   }, []);
 
   const selectedUnit = units.find((unit) => unit.unitNumber === selectedUnitNumber) || units[0];
@@ -237,6 +288,55 @@ export default function Home() {
     }
   }
 
+  async function saveUnitHours(unitNumber, pumpHours, date = null, notes = '') {
+    const numericHours = Number(pumpHours);
+    if (!Number.isFinite(numericHours) || numericHours < 0) {
+      window.alert('Please enter a valid pump hours value (0 or greater).');
+      return;
+    }
+
+    const normalizedDate = date || new Date().toISOString().slice(0, 10);
+    try {
+      const { data, error } = await supabase.from('unit_hours').insert({
+        unit_number: unitNumber,
+        pump_hours: numericHours,
+        date: normalizedDate,
+        notes: notes || '',
+      }).select().single();
+
+      if (error) {
+        console.error('Supabase insert error:', error);
+        window.alert(`Failed to save pump hours: ${error.message || JSON.stringify(error)}`);
+        return;
+      }
+
+      // Optimistically update latestHoursMap
+      setLatestHoursMap((prev) => ({
+        ...prev,
+        [String(unitNumber)]: data,
+      }));
+
+      setQuickHours((prev) => {
+        const next = { ...prev };
+        delete next[unitNumber];
+        return next;
+      });
+    } catch (ex) {
+      console.error('Unexpected error saving unit_hours:', ex);
+      window.alert(`Unexpected error: ${ex.message || ex}`);
+    }
+  }
+
+  function handleQuickSave(unitNumber, e) {
+    e?.stopPropagation();
+    const pumpHours = quickHours[unitNumber];
+    if (!pumpHours && pumpHours !== 0) {
+      window.alert('Please enter pump hours.');
+      return;
+    }
+    saveUnitHours(unitNumber, pumpHours);
+  }
+
   return (
     <>
       <Head>
@@ -257,14 +357,45 @@ export default function Home() {
         </div>
         <nav id="unitList" className="unit-list" aria-label="Unit list">
           {units.map((unit) => (
-            <button
+            <div
               key={unit.unitNumber}
-              type="button"
+              role="button"
+              tabIndex={0}
               className={`unit-item ${unit.unitNumber === selectedUnitNumber ? 'active' : ''}`}
               aria-pressed={unit.unitNumber === selectedUnitNumber}
               onClick={() => setSelectedUnitNumber(unit.unitNumber)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setSelectedUnitNumber(unit.unitNumber);
+                }
+              }}
             >
               <div>Unit {unit.unitNumber}</div>
+
+              <div className="quick-hours-control" onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="number"
+                  className="quick-hours-input"
+                  placeholder="hrs"
+                  value={quickHours[unit.unitNumber] || ''}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setQuickHours((prev) => ({ ...prev, [unit.unitNumber]: v }));
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+                <button
+                  type="button"
+                  className="quick-save-button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleQuickSave(unit.unitNumber, e);
+                  }}
+                >
+                  Save
+                </button>
+              </div>
 
               <div className="unit-progress" aria-hidden="true">
                 <div className="unit-progress-bar">
@@ -285,7 +416,7 @@ export default function Home() {
                 </div>
                 <div className="progress-label">Packing {progressMap[unit.unitNumber]?.packing || '0%'}</div>
               </div>
-            </button>
+            </div>
           ))}
         </nav>
       </aside>
